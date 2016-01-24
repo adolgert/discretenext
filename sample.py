@@ -3,8 +3,14 @@ This runs a simulation using two different sampling techniques.
 The model is specified in discrete time.
 
 Usage:
-    sample.py [-h] [-v] [-q] priority <filename> <runs> <stream>
-    sample.py [-h] [-v] [-q] shifted <filename> <runs> <stream>
+    sample.py [-h] [-v] [-q] priority <filename> <runs> <stream> [--sis=<N>]
+    sample.py [-h] [-v] [-q] shifted <filename> <runs> <stream> [--sis=<N>]
+
+Options:
+    -h, --help   Show this help message.
+    -v           Verbose logging.
+    -q           Log only warnings and errors.
+    --sis=<N>    Use an SIS model with N individuals.
 """
 import copy
 import logging
@@ -35,6 +41,10 @@ class GeometricTransition(object):
         return rng.geometric(p=self.p)
 
     def Shifted(self, now, rng):
+        """
+        This now is the time since enabling the transition, not
+        an absolute time.
+        """
         return rng.binomial(n=1, p=self.p)==1
 
 
@@ -52,6 +62,10 @@ class UniformTransition(object):
         return rng.randint(*self.lims)
 
     def Shifted(self, now,  rng):
+        """
+        This now is the time since enabling the transition, not
+        an absolute time.
+        """
         if now<self.a: return False
         assert(now<self.b)
         if self.b-now==1:
@@ -130,6 +144,50 @@ def CreateSISModel(N, step_max, transitions):
     return process, initial_marking
 
 
+def InterrupterModel(step_max, transitions):
+    """
+    This is an interrupter where there is more than one transition
+    competing to fire. Maybe that's necessary.
+    """
+    survival=chemical.DiscreteSurvival(step_max)
+    process=chemical.Process(survival)
+
+    initial_marking={ 1 : 1, 2: 1, 3: 0, 8 : 1}
+    process.AddPlace(1, 1, 0)
+    process.AddPlace(2, 2, 0)
+    process.AddPlace(3, 3, 0)
+    process.AddPlace(8, 8, 0)
+    process.AddTransition(4, 4, transitions["A"].Clone(),
+        [(1, -1), (1, 1), (2, -1), (2, 1)], 0)
+    process.AddTransition(5, 5, transitions["B"].Clone(),
+        [(2, -1), (3, 1)], 0)
+    process.AddTransition(6, 6, transitions["C"].Clone(),
+        [(3, -1), (2, 1)], 0)
+    process.AddTransition(7, 7, transitions["A"].Clone(),
+        [(8, -1), (8, 1), (2, -1), (2, 1)], 0)
+    return process, initial_marking
+
+
+def InterrupterModelOne(step_max, transitions):
+    """
+    Three places, three transitions. See interrupter.{png,pdf}.
+    """
+    survival=chemical.DiscreteSurvival(step_max)
+    process=chemical.Process(survival)
+
+    initial_marking={ 1 : 1, 2: 1, 3: 0}
+    process.AddPlace(1, 1, 0)
+    process.AddPlace(2, 2, 0)
+    process.AddPlace(3, 3, 0)
+    process.AddTransition(4, 4, transitions["A"].Clone(),
+        [(1, -1), (1, 1), (2, -1), (2, 1)], 0)
+    process.AddTransition(5, 5, transitions["B"].Clone(),
+        [(2, -1), (3, 1)], 0)
+    process.AddTransition(6, 6, transitions["C"].Clone(),
+        [(3, -1), (2, 1)], 0)
+    return process, initial_marking
+
+
 def SamplePriority(model, initial_marking, step_cnt, summary, rng):
     """
     This sampling method draws for a future transition time
@@ -138,6 +196,7 @@ def SamplePriority(model, initial_marking, step_cnt, summary, rng):
     disobeys statistics by failing to draw from geometric distributions
     and then use a random variable transformation.
     """
+    logger.debug("SamplePriority enter step_cnt {0}".format(step_cnt))
     now=0
     last_step=-1
     heap=pairing_heap.pairing_heap()
@@ -150,7 +209,10 @@ def SamplePriority(model, initial_marking, step_cnt, summary, rng):
     while not heap.empty():
         now, priority, who=heap.extract()
         should_be, was_enabled=model.Enabled(who)
-        assert(should_be==was_enabled)
+        if should_be!=was_enabled:
+            logger.error("who {0} should {1} was {2}".format(who,
+                    should_be, was_enabled))
+            assert(should_be==was_enabled)
         assert(was_enabled)
 
         if now>step_cnt:
@@ -171,7 +233,7 @@ def SamplePriority(model, initial_marking, step_cnt, summary, rng):
                 (efiring_time, etransition.priority, ename))
             model.Enable(ename, now)
         if now!=last_step:
-            summary[model.SummaryCounts()["I"]]+=1
+            #summary[model.SummaryCounts()["I"]]+=1
             last_step=now
 
     model.FinishTiming(now)
@@ -184,6 +246,7 @@ def SampleShifted(model, initial_marking, step_cnt, summary, rng):
     sample every enabled transition to see whether it will fire.
     Yes, this is incredibly slow.
     """
+    logger.debug("SampleShifted enter step_cnt {0}".format(step_cnt))
     now=0
     model.Reset(initial_marking, now)
     for fname, ftransition in model.AllEnabled():
@@ -201,7 +264,10 @@ def SampleShifted(model, initial_marking, step_cnt, summary, rng):
         for priority_key in sorted(prioritized.keys()):
             for name, transition in prioritized[priority_key]:
                 should_be, was_enabled=model.Enabled(name)
-                assert(should_be==was_enabled)
+                if should_be!=was_enabled:
+                    logger.error("who {0} should {1} was {2}".format(name,
+                            should_be, was_enabled))
+                    assert(should_be==was_enabled)
                 # It's possible a transition was disabled by another
                 # transition scheduled for the same time.
                 logger.debug("SampleShifted now {0} name {1}".format(now, name))
@@ -225,11 +291,62 @@ def SampleShifted(model, initial_marking, step_cnt, summary, rng):
                 else:
                     pass
         now+=1
-        summary[model.SummaryCounts()["I"]]+=1
+        #summary[model.SummaryCounts()["I"]]+=1
 
 
     model.FinishTiming(now)
     return now
+
+
+def ConfigureSISModel(arguments):
+    params=dict()
+    N=10
+    dt=0.01
+    step_cnt=int(100/dt)
+    # step_max is longest time it will take to fire a transition.
+    step_max=int(10/dt)
+    params["dt"]=dt
+    params["N"]=N
+    params["step_cnt"]=step_cnt
+    params["step_max"]=step_max
+    logger.info("step count {0}".format(step_cnt))
+    priority={ "I" : 0, "R" : 1 }
+
+    # The specification of distributions is discrete, but I'd like them
+    # to behave similarly, not necessarily the same, as dt changes.
+    # So we specify times in floating point and convert to integers.
+    beta=0.5
+    a=.2
+    b=1.5
+    transitions={
+        "I" : Transition(GeometricTransition(beta*dt/(1+beta*dt)), priority["I"]),
+        "R" : Transition(UniformTransition(round(a/dt), round(b/dt)), priority["R"])
+    }
+
+    model, initial_marking=CreateSISModel(N, step_max, transitions)
+    return model, initial_marking, params
+
+
+def ConfigureInterrupter(arguments):
+    params=dict()
+    params["N"]=3
+    dt=0.01
+    step_cnt=int(100/dt)
+    step_max=int(20/dt)
+    priority={"A" : 0, "B" : 1, "C" : 1}
+    a_limits=[round(0.2/dt), round(1.8/dt)]
+    b_limits=[round(0.8/dt), round(1.6/dt)]
+    params["dt"]=dt
+    params["step_cnt"]=step_cnt
+    params["step_max"]=step_max
+
+    transitions={
+        "A" : Transition(UniformTransition(a_limits[0], a_limits[1]), priority["A"]),
+        "B" : Transition(UniformTransition(b_limits[0], b_limits[1]), priority["B"]),
+        "C" : Transition(UniformTransition(1, 3), priority["C"])
+    }
+    model, initial_marking=InterrupterModel(step_max, transitions)
+    return model, initial_marking, params
 
 
 def WriteFile(filename, model, duration, summary):
@@ -255,32 +372,17 @@ if __name__ == "__main__":
 
     filename=arguments["<filename>"]
     instance_cnt=int(arguments["<runs>"])
-    N=10
-    dt=0.01
-    step_cnt=int(100/dt)
-    # step_max is longest time it will take to fire a transition.
-    step_max=int(10/dt)
-    logger.info("step count {0}".format(step_cnt))
-    priority={ "I" : 0, "R" : 1 }
 
-    # The specification of distributions is discrete, but I'd like them
-    # to behave similarly, not necessarily the same, as dt changes.
-    # So we specify times in floating point and convert to integers.
-    beta=0.5
-    a=.2
-    b=1.5
-    transitions={
-        "I" : Transition(GeometricTransition(beta*dt/(1+beta*dt)), priority["I"]),
-        "R" : Transition(UniformTransition(round(a/dt), round(b/dt)), priority["R"])
-    }
-
-    model, initial_marking=CreateSISModel(N, step_max, transitions)
+    model, initial_marking, params=ConfigureInterrupter(arguments)
+    #model, initial_marking, params=ConfigureSISModel(arguments)
 
     if arguments["priority"]:
         sampler=SamplePriority
     elif arguments["shifted"]:
         sampler=SampleShifted
 
+    N=params["N"]
+    step_cnt=params["step_cnt"]
     time_limit_secs=10*60
     walltime=time.time()
     summary=np.zeros((N+1,), dtype=np.int)
@@ -299,10 +401,15 @@ if __name__ == "__main__":
 
     logger.info("Density\n{0}".format(summary))
     print_cnt=20
-    end=np.where(duration>0)[0][-1]
+    locations=np.where(duration>0)[0]
+    if len(locations)>1:
+        end=locations[-1]
+    else:
+        end=len(duration)
     row_cnt=math.ceil(end/print_cnt)
     logger.info("Duration {0} out of total {1}".format(
         np.sum(duration), instance_cnt))
+    dt=params["dt"]
     for pr_idx in range(print_cnt):
         when=dt*pr_idx*row_cnt
         row_end=min((pr_idx+1)*row_cnt, end)

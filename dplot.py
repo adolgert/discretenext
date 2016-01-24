@@ -4,6 +4,7 @@ Plots discrete time data.
 
 Usage:
   dplot.py [-v] [-q] evince <aglob> <bglob>
+  dplot.py [-v] [-q] interrupt <aglob> <bglob>
 
 Options:
   -h, --help  Show this screen.
@@ -26,6 +27,38 @@ import pdfedit
 logger=logging.getLogger("dplot")
 
 
+def interrupt(file_globs):
+    summary=list()
+    for fg in file_globs:
+        files=glob.glob(fg)
+        fstream=list()
+        for hf in files:
+            try:
+                fstream.append(h5py.File(hf, "r"))
+            except:
+                logger.error("Could not open {0}".format(hf))
+        summary.append(datafiles.accumulate_array(fstream, "4fire"))
+        fsum=np.sum(summary[-1])
+        dsum=np.sum(datafiles.accumulate_array(fstream, "4disable"))
+        logger.info("fire ratio {0} {1}".format(fsum/(fsum+dsum), fg))
+
+    dt=0.01
+    fig=plt.figure(1, figsize=(3, 2))
+    ax=fig.add_subplot(111)
+    ax.set_title("Holding Time")
+    end=0
+    for arr in summary:
+        cutoff=np.max(arr)/100
+        end=max(end, dt*np.where(arr>cutoff)[0][-1])
+    x=dt*np.array(range(summary[0].shape[0]), np.int)
+    ax.set_xlim(0, end)
+    for sums in summary:
+        plt.plot(x, sums/np.sum(sums), ".", ms=1)
+    plt.tight_layout()
+    plt.savefig("interrupt.pdf", format="pdf")
+    plt.clf()
+
+
 def evince(file_globs):
     """
     Plot h_{ij} for given distributions.
@@ -33,6 +66,7 @@ def evince(file_globs):
 
     ifire=list()
     rfire=list()
+    summary=list()
     for fg in file_globs:
         files=glob.glob(fg)
         fstream=list()
@@ -43,6 +77,7 @@ def evince(file_globs):
                 logger.error("Could not open {0}".format(hf))
         ifire.append(datafiles.accumulate_array(fstream, "Ifire"))
         rfire.append(datafiles.accumulate_array(fstream, "Rfire"))
+        summary.append(datafiles.accumulate_array(fstream, "summary"))
 
     for arrays, name in zip([ifire, rfire], ["Infection", "Recovery"]):
         fig=plt.figure(1, figsize=(3, 2))
@@ -58,8 +93,20 @@ def evince(file_globs):
         for arr in arrays:
             plt.plot(x, arr/np.sum(arr))
         plt.show()
-        plt.savefig("Firing{0}".format(name))
+        plt.tight_layout()
+        plt.savefig("Firing{0}.pdf".format(name), format="pdf")
         plt.clf()
+
+    fig=plt.figure(1, figsize=(3, 2))
+    ax=fig.add_subplot(111)
+    ax.set_title("Occupancy Fraction")
+    x=np.array(range(summary[0].shape[0]), np.int)
+    for sums in summary:
+        plt.plot(x, sums/np.sum(sums))
+    plt.tight_layout()
+    plt.show()
+    plt.savefig("occupancy.pdf", format="pdf")
+    plt.clf()
 
 
 if __name__ == "__main__":
@@ -73,3 +120,5 @@ if __name__ == "__main__":
 
     if arguments["evince"]:
         evince([arguments["<aglob>"], arguments["<bglob>"]])
+    if arguments["interrupt"]:
+        interrupt([arguments["<aglob>"], arguments["<bglob>"]])

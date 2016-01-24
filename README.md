@@ -68,4 +68,14 @@ so we decide infections happen before recoveries (or, rather, transitions
 back to susceptible), but we also choose a very small time step so
 that this is quite rare.
 
+## The Interruption Model
+
+This is the simplest chemical reaction where one transition interrupts
+another one. One transition just wants to keep firing, but it needs
+its neighbor's token. The neighbor, however, will sometimes fire
+so that it leaves for a moment, and then fire to return. We watch
+the density of firing times for the first transition, given that
+it is being interrupted.
+
+![Interrupter model has three places, three transitions][interrupter.png]
 

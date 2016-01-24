@@ -23,14 +23,14 @@ class ContinuousSurvival(object):
         for k, v in self.fire.items():
             a=np.array(v, dtype=np.double)
             a.sort()
-            group.create_dataset(k+"fire", data=a)
+            group.create_dataset(str(k)+"fire", data=a)
             if k not in self.disable:
                 self.disable[k]=list()
 
         for k, v in self.disable.items():
             a=np.array(v, dtype=np.double)
             a.sort()
-            group.create_dataset(k+"disable", data=a)
+            group.create_dataset(str(k)+"disable", data=a)
 
 
 class DiscreteSurvival(object):
@@ -76,10 +76,10 @@ class DiscreteSurvival(object):
         for k, v in self.beyond.items():
             group.attrs["survivalbeyond"+k]=v
         for k, v in self.fire.items():
-            group.create_dataset(k+"fire", data=v)
+            group.create_dataset(str(k)+"fire", data=v)
 
         for k, v in self.disable.items():
-            group.create_dataset(k+"disable", data=v)
+            group.create_dataset(str(k)+"disable", data=v)
 
 
 class Process(object):
@@ -222,11 +222,12 @@ class Process(object):
                 now-self.G.node[name]["time"])
         for t, p in self.G.edges(name):
             weight=sum(self.G.edge[t][p]["w"])
-            if weight is not 0:
-                self.G.node[p]["v"]+=weight
-                self.G.node[p]["time"]=now
-                self.modified_place.add(p)
-                self.keyed_marking[self.G.node[p]["key"]]+=weight
+            # This marks a place as modified even if the weight is 0,
+            # because the token moved.
+            self.G.node[p]["v"]+=weight
+            self.G.node[p]["time"]=now
+            self.modified_place.add(p)
+            self.keyed_marking[self.G.node[p]["key"]]+=weight
         self._Disable(name, now)
         return self.modified_place
 
