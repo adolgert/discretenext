@@ -12,6 +12,7 @@ Options:
   -q          Quiet logging.
 """
 import logging
+import math
 import os
 import glob
 import numpy as np
@@ -28,6 +29,10 @@ logger=logging.getLogger("dplot")
 
 
 def interrupt(file_globs):
+    interrupt_n(file_globs, 4)
+    interrupt_n(file_globs, 5)
+
+def interrupt_n(file_globs, n):
     summary=list()
     for fg in file_globs:
         files=glob.glob(fg)
@@ -37,10 +42,14 @@ def interrupt(file_globs):
                 fstream.append(h5py.File(hf, "r"))
             except:
                 logger.error("Could not open {0}".format(hf))
-        summary.append(datafiles.accumulate_array(fstream, "4fire"))
+        summary.append(datafiles.accumulate_array(fstream, "{0}fire".format(n)))
         fsum=np.sum(summary[-1])
-        dsum=np.sum(datafiles.accumulate_array(fstream, "4disable"))
-        logger.info("fire ratio {0} {1}".format(fsum/(fsum+dsum), fg))
+        dsum=np.sum(datafiles.accumulate_array(fstream, "{0}disable".format(n)))
+        total=fsum+dsum
+        p=fsum/total
+        variance=total*p*(1-p)
+        logger.info("fire ratio {0} N {1} sqrt(var)/total {2} name {3}".format(
+                p, total, math.sqrt(variance)/total, fg))
 
     dt=0.01
     fig=plt.figure(1, figsize=(3, 2))
@@ -51,11 +60,13 @@ def interrupt(file_globs):
         cutoff=np.max(arr)/100
         end=max(end, dt*np.where(arr>cutoff)[0][-1])
     x=dt*np.array(range(summary[0].shape[0]), np.int)
-    ax.set_xlim(0, end)
+    ax.set_xlim(0, 1.1*end)
     for sums in summary:
         plt.plot(x, sums/np.sum(sums), ".", ms=1)
     plt.tight_layout()
-    plt.savefig("interrupt.pdf", format="pdf")
+    fname="interrupt{0}.pdf".format(n)
+    logger.info("writing "+fname)
+    plt.savefig(fname, format="pdf")
     plt.clf()
 
 

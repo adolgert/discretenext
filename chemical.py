@@ -166,7 +166,10 @@ class Process(object):
     def Enabled(self, name):
         """
         Returns both whether transition should be enabled by the marking
-        and whether it is currently marked as enabled.
+        and whether it is currently marked as enabled. The memory
+        policy of the transition is enforced by whatever calls this.
+        For instance, something that was enabled and is now enabled
+        could reset its enabling time or not.
         """
         assert("t" in self.G.node[name])
         for t, p in self.G.edges(name):

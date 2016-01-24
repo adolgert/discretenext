@@ -53,6 +53,7 @@ class UniformTransition(object):
         assert(type(a)==int)
         assert(type(b)==int)
         assert(b>a)
+        assert(a>0) # lower bound must be 1 or higher.
         self.lims=[a, b]
         self.a=a
         self.b=b
@@ -163,8 +164,10 @@ def InterrupterModel(step_max, transitions):
         [(2, -1), (3, 1)], 0)
     process.AddTransition(6, 6, transitions["C"].Clone(),
         [(3, -1), (2, 1)], 0)
-    process.AddTransition(7, 7, transitions["A"].Clone(),
+    process.AddTransition(7, 7, transitions["D"].Clone(),
         [(8, -1), (8, 1), (2, -1), (2, 1)], 0)
+    process.AddTransition(9, 9, transitions["B"].Clone(),
+        [(2, -1), (3, 1)], 0)
     return process, initial_marking
 
 
@@ -333,9 +336,10 @@ def ConfigureInterrupter(arguments):
     dt=0.01
     step_cnt=int(100/dt)
     step_max=int(20/dt)
-    priority={"A" : 0, "B" : 1, "C" : 1}
+    priority={"A" : 0, "B" : 1, "C" : 1, "D" : 0}
     a_limits=[round(0.2/dt), round(1.8/dt)]
     b_limits=[round(0.8/dt), round(1.6/dt)]
+    betap=1.0*dt
     params["dt"]=dt
     params["step_cnt"]=step_cnt
     params["step_max"]=step_max
@@ -343,7 +347,8 @@ def ConfigureInterrupter(arguments):
     transitions={
         "A" : Transition(UniformTransition(a_limits[0], a_limits[1]), priority["A"]),
         "B" : Transition(UniformTransition(b_limits[0], b_limits[1]), priority["B"]),
-        "C" : Transition(UniformTransition(1, 3), priority["C"])
+        "C" : Transition(UniformTransition(1, 3), priority["C"]),
+        "D" : Transition(GeometricTransition(betap/(1+betap)), priority["D"])
     }
     model, initial_marking=InterrupterModel(step_max, transitions)
     return model, initial_marking, params
@@ -383,7 +388,9 @@ if __name__ == "__main__":
 
     N=params["N"]
     step_cnt=params["step_cnt"]
-    time_limit_secs=10*60
+    minutes_save=10
+    logger.info("Writes data every {0} minutes".format(minutes_save))
+    time_limit_secs=minutes_save*60
     walltime=time.time()
     summary=np.zeros((N+1,), dtype=np.int)
     duration=np.zeros((step_cnt,), dtype=np.int)
