@@ -77,5 +77,13 @@ so that it leaves for a moment, and then fire to return. We watch
 the density of firing times for the first transition, given that
 it is being interrupted.
 
-![Interrupter model has three places, three transitions][interrupter.png]
+!(Interrupter model has three places, three transitions)[interrupter.png]
 
+The net result of the model is that one of the transitions fires
+48.9% +- 1e-4% of the time for one simulation, and the other fires 50.1%
++1 1e-4% of the time. Doesn't sound like a lot, but I feel like I haven't
+optimized to find bias in the simulations.
+
+!(Holding time for the same transition in two simulations)[interrupt5.png]
+
+It looks like a slight difference in slopes.

@@ -52,7 +52,7 @@ def interrupt_n(file_globs, n):
                 p, total, math.sqrt(variance)/total, fg))
 
     dt=0.01
-    fig=plt.figure(1, figsize=(3, 2))
+    fig=plt.figure(1, figsize=(8, 5))
     ax=fig.add_subplot(111)
     ax.set_title("Holding Time")
     end=0
@@ -64,9 +64,9 @@ def interrupt_n(file_globs, n):
     for sums in summary:
         plt.plot(x, sums/np.sum(sums), ".", ms=1)
     plt.tight_layout()
-    fname="interrupt{0}.pdf".format(n)
+    fname="interrupt{0}.png".format(n)
     logger.info("writing "+fname)
-    plt.savefig(fname, format="pdf")
+    plt.savefig(fname, format="png")
     plt.clf()
 
 
