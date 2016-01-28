@@ -79,6 +79,9 @@ it is being interrupted.
 
 ![Interrupter model has three places, three transitions](interrupter.png)
 
+The actualy model used has two A transitions and two B transitions. The
+multiple A transitions don't seem to compete. The multiple B transitions
+are the ones that show this error.
 The net result of the model is that one of the transitions fires
 48.9% ± 1e-4% of the time for one simulation, and the other fires 50.1%
 ± 1e-4% of the time. Doesn't sound like a lot, but I feel like I haven't
@@ -87,3 +90,37 @@ optimized to find bias in the simulations.
 ![Holding time for the same transition in two simulations](interrupt5.png)
 
 It looks like a slight difference in slopes.
+
+## An Explanation
+
+Gibson and Bruck show that the distribution of samples from their algorithm
+agrees with the distribution of samples from Gilespie's First Reaction algorithm,
+so they don't have to do any more than that to show correctness. I'm curious
+about how incorrect an incorrect algorithm can be, so how do we pose
+that question? I don't have an answer, but I have two clues.
+
+Gibson and Bruck's paper suggests that the problem with keeping
+samples from previous time steps is that those samples which
+are re-sampled, instead of being recomputed using a random variable
+transformation, will bias the distribution of the set of draws. The
+only way for bias to happen in this algorithm is at the moment
+of a transition, when firing a transition affects other transitions'
+rates or whether they are enabled.
+
+The second clue comes from our current understanding of the Next
+Reaction algorithm, as explained in papers by Anderson. He
+looks at it as a statistical process on competing renewal
+processes. These renewal processes carry state separate from
+the location of tokens in the graph and separate from the
+enabling time. That state is the amount of "time" remaining
+in the exponential distributions from which samples are taken.
+Bias from resampling distributions of transitions is equivalent
+to resetting the clocks of these renewal processes, and resetting
+them at times which are correlated.
+
+We therefore expect maximal error in the simple, flawed, priority-draw
+algorithm when the stochastic matrix for the system is 
+sensitive to resetting renewal processes for transitions which
+depend on other transitions. What I need to do is to set up a
+system where this is clearer and where I can calculate the
+difference theoretically.
